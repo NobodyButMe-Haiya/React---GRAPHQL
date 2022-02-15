@@ -1,58 +1,64 @@
 import './App.css';
 import React, { useState, useEffect, useRef } from 'react';
 import { Container } from 'react-bootstrap';
-import Swal from 'sweetalert2';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMagnifyingGlass, faArrowsRotate, faPlus, faTrash, faPenToSquare } from '@fortawesome/free-solid-svg-icons';
 import { GET_PERSONS, CREATE_PERSON, UPDATE_PERSON, DELETE_PERSON } from './Query';
-import { useQuery } from '@apollo/react-hooks';
+import { useQuery, useMutation } from '@apollo/client';
 
 function App() {
 
 
   let [listDataFromServer, defineMeTheList] = useState([]);
+  // input change
   let [inputName, setName] = useState("");
   let [inputAge, setAge] = useState("");
-
   let [inputSearch, setSearch] = useState("");
-
+  // replacement for id 
   let nameRef = useRef(null);
   let ageRef = useRef(null);
   let searchRef = useRef(null);
-  
-    // calling constructor to get some value 
-  useEffect(() => {
-    console.log("use effect");
-    const getPersons = useQuery(GET_PERSONS);
-    // is this will work ? 
-    getPersons.then(items => {
-      console.log(items);
-      defineMeTheList(items);
-    });
-  }, []);
 
+  const { data, loading, error,refetch } = useQuery(GET_PERSONS);
+  const [createMutation] = useMutation(CREATE_PERSON);
+  const [updateMutation] = useMutation(UPDATE_PERSON);
+  const [deleteMutation] = useMutation(DELETE_PERSON);
+  // calling constructor to get some value 
+
+  useEffect(() => {
+    if (loading === false && data) {
+      console.log(data.getPersons);
+      // not this console.log(data.getPersons.data);
+      defineMeTheList(data.getPersons);
+
+    }
+  }, [loading, data])
+  // start search
   const searchRecord = () => {
     console.log("searchRecord");
     // manual search inputSearch ? 
-    var data = [];
-    listDataFromServer.map((row) => {
-      if (row.name.toLowerCase().includes(inputSearch.toLowerCase())) {
-        var row = { personId: row.personId, name: newName, age: row.age };
-        data.push(row);
-      } else {
-        data.push(row);
-      }
-    });
-    defineMeTheList(data);
+    var dataFilter = [];
+    if (inputSearch !== "") {
+      listDataFromServer.map((row) => {
+        // so should loop here 
+        if (row.name.toLowerCase().includes(inputSearch.toLowerCase())) {
+          let newRow = { personId: row.personId, name: row.name, age: row.age };
+          dataFilter.push(newRow);
+        }
+      });
+
+      console.log(dataFilter);
+      defineMeTheList(dataFilter);
+    }
+    return "";
   }
   const resetRecord = () => {
     console.log("Resetting record");
     searchRef.current.value = "";
-    getList().then(items => {
-      console.log(items);
-      defineMeTheList(items);
-    });
+    refetch();
   }
+  // end search
+  // form event
   const handleChangeSearch = (e) => {
     setSearch(e.target.value);
   }
@@ -64,58 +70,70 @@ function App() {
   }
   const handleChangeNameRow = (e, rowCurrent) => {
     let newName = e.target.value;
-    var data = [];
+    let dataSort = [];
     listDataFromServer.map((row) => {
       if (row.personId === rowCurrent.personId && row.name !== newName) {
-        var row = { personId: row.personId, name: newName, age: row.age };
-        data.push(row);
+        let newRow = { personId: row.personId, name: newName, age: row.age };
+        dataSort.push(newRow);
       } else {
-        data.push(row);
+        dataSort.push(row);
       }
     });
-    defineMeTheList(data);
+    defineMeTheList(dataSort);
   }
   const handleChangeAgeRow = (e, rowCurrent) => {
     let newAge = e.target.value;
-    var data = [];
+    let dataSort = [];
     listDataFromServer.map((row) => {
       if (row.personId === rowCurrent.personId && row.age !== newAge) {
-        var row = { personId: row.personId, name: row.name, age: newAge };
-        data.push(row);
+        let newRow = { personId: row.personId, name: row.name, age: newAge };
+        dataSort.push(newRow);
       } else {
-        data.push(row);
+        dataSort.push(row);
       }
     });
-    defineMeTheList(data);
+    defineMeTheList(dataSort);
   }
-  const createRecord = () => {
+  // end form event
+  // start crud
+  async function CreateRecord() {
     console.log("addRecord");
+
     try {
-      const createMutation = useQuery(CREATE_PERSON, { variables: { name: inputName, age: inputAge } });
+      await createMutation({ variables: { name: inputName, age: parseInt(inputAge) },refetchQueries: [{ query: GET_PERSONS }] });
+      console.log(createMutation);
+      defineMeTheList(data.getPersons);
+      nameRef.current.value = "";
+      ageRef.current.value = "";
+  
     } catch (error) {
       console.log(error);
     }
 
   }
-  const updateRecord = (row) => {
+  async function UpdateRecord(row) {
     console.log("update record");
     try {
-      const updateMutation = useQuery(UPDATE_PERSON, { variables: { name: row.name, age: row.age, personId: row.personId } });
+      await updateMutation({ variables: { name: row.name, age: parseInt(row.age), personId: parseInt(row.personId) } });
+      console.log(updateMutation)
     } catch (error) {
       console.log(error);
     }
 
   }
-  const deleteRecord = (row) => {
+  async function DeleteRecord(row) {
     console.log("deleteRecord");
 
     try {
-      const deleteMutation = useQuery(DELETE_PERSON, { variables: { personId: row.personId } });
+      await deleteMutation({ variables: { personId: parseInt(row.personId) },refetchQueries: [{ query: GET_PERSONS }] });
+      console.log(deleteMutation)
     } catch (error) {
       console.log(error);
     }
   }
+  // end crud
   const anyData = () => {
+
     return (
       listDataFromServer.map((row) => {
         let name = row.personId + "-Name";
@@ -130,11 +148,11 @@ function App() {
 
           </td>
           <td>
-            <button type="button" className="btn btn-warning" onClick={(e) => updateRecord(row)}>
+            <button type="button" className="btn btn-warning" onClick={() => UpdateRecord(row)}>
               <FontAwesomeIcon icon={faPenToSquare} />&nbsp;
               UPDATE</button>
             &nbsp;
-            <button type="button" className="btn btn-danger" onClick={() => deleteRecord(row)}>
+            <button type="button" className="btn btn-danger" onClick={() => DeleteRecord(row)}>
               <FontAwesomeIcon icon={faTrash} />&nbsp;
               DELETE</button>
           </td>
@@ -144,9 +162,12 @@ function App() {
   const emptyData = () => {
     return (<tr><td colSpan={4}>No Record Available</td></tr>);
   }
+  const loadingData = () => {
+    return (<tr><td colSpan={4}>Loading .. </td></tr>);
+  }
   return (
     <Container>
-      <h1>This is sample react app with bootstrap inline</h1>
+      <h1>Sample Testing React With GraphQL + MySQL</h1>
       <div className="card">
         <div className="card-body">
           <label>
@@ -171,7 +192,7 @@ function App() {
             <th><input type="text" ref={nameRef} id="name" placeholder="Name" className="form-control" onChange={(e) => handleChangeName(e)} /></th>
             <th><input type="text" ref={ageRef} id="age" placeholder="Age" className="form-control" onChange={(e) => handleChangeAge(e)} /> </th>
             <th>
-              <button type="button" className="btn btn-primary" onClick={createRecord}>
+              <button type="button" className="btn btn-primary" onClick={CreateRecord}>
                 <FontAwesomeIcon icon={faPlus} />&nbsp;
                 Create </button>
             </th>
@@ -184,9 +205,11 @@ function App() {
           </tr>
         </thead>
         <tbody id="tbody">
-          {(listDataFromServer?.length > 0) ? anyData() : emptyData()}
+
+          {(loading) ? loadingData() : (listDataFromServer.length > 0) ? anyData() : emptyData()}
         </tbody>
       </table>
+
     </Container>
   );
 }
